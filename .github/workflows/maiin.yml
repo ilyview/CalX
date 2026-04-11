@@ -1,0 +1,49 @@
+name: Build IPA for KSign
+on: workflow_dispatch
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Verify Files
+        run: |
+          echo "Checking for package.json..."
+          ls -R
+
+      - name: Setup Node 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24 # Updated for 2026 standards
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Expo Prebuild
+        run: npx expo prebuild --platform ios
+
+      - name: Compile Unsigned IPA
+        run: |
+          xcodebuild -workspace ios/*.xcworkspace \
+            -scheme $(ls ios | grep .xcodeproj | cut -f 1 -d '.') \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            AD_HOC_CODE_SIGNING_ALLOWED=YES
+
+      - name: Wrap into IPA
+        run: |
+          mkdir -p Payload
+          cp -r build/Build/Products/Release-iphoneos/*.app Payload/
+          zip -r CalTracker.ipa Payload
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: my-app-ipa
+          path: CalTracker.ipa
