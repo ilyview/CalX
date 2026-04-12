@@ -5,7 +5,7 @@ import {
   TouchableWithoutFeedback, Keyboard, Platform, Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { getJournal, saveJournalEntry, getFoodLog, getWorkoutPlans, getSchedule } from '../../utils/storage';
+import { getJournal, saveJournalEntry, getFoodLog, getWorkoutPlans, getSchedule, getRestTimerDuration } from '../../utils/storage';
 import { JournalEntry, LoggedExercise, LoggedSet, WorkoutPlan } from '../../utils/types';
 
 const ACCENT = '#a78bfa';
@@ -70,12 +70,12 @@ function RestTimer({ seconds, onDone }: { seconds: number; onDone: () => void })
 }
 
 const timerStyles = StyleSheet.create({
-  wrap: { backgroundColor: '#1e1a2e', borderRadius: 14, padding: 14, marginBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 12, overflow: 'hidden' },
+  wrap: { backgroundColor: '#1e1a2e', borderRadius: 14, padding: 14, marginBottom: 10, flexDirection: 'row', alignItems: 'center', gap: 12, overflow: 'hidden', shadowColor: '#a78bfa', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.4, shadowRadius: 12, elevation: 6 },
   progressBg: { position: 'absolute', left: 0, top: 0, bottom: 0, right: 0, backgroundColor: '#2a2040', borderRadius: 14 },
-  progressFill: { position: 'absolute', left: 0, top: 0, bottom: 0, backgroundColor: ACCENT + '33' },
-  label: { flex: 1, color: ACCENT, fontWeight: '700', fontSize: 16, zIndex: 1 },
-  skipBtn: { backgroundColor: ACCENT + '22', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, zIndex: 1 },
-  skipTxt: { color: ACCENT, fontWeight: '600', fontSize: 13 },
+  progressFill: { position: 'absolute', left: 0, top: 0, bottom: 0, backgroundColor: '#a78bfa22' },
+  label: { flex: 1, color: '#a78bfa', fontWeight: '700', fontSize: 16, zIndex: 1 },
+  skipBtn: { backgroundColor: '#a78bfa18', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6, zIndex: 1 },
+  skipTxt: { color: '#a78bfa', fontWeight: '600', fontSize: 13 },
 });
 
 // ── Set Row ────────────────────────────────────────────────────────
@@ -124,7 +124,7 @@ function calc1RM(sets: LoggedSet[]): number | null {
   return best > 0 ? Math.round(best) : null;
 }
 
-function ExerciseLogger({ exercise, onChange }: { exercise: LoggedExercise; onChange: (e: LoggedExercise) => void }) {
+function ExerciseLogger({ exercise, onChange, restDuration }: { exercise: LoggedExercise; onChange: (e: LoggedExercise) => void; restDuration: number }) {
   const [timerSecs, setTimerSecs] = useState<number | null>(null);
 
   const addSet = () => {
@@ -132,7 +132,7 @@ function ExerciseLogger({ exercise, onChange }: { exercise: LoggedExercise; onCh
     const newSet: LoggedSet = { reps: lastSet?.reps || '', weight: lastSet?.weight || '' };
     const updated = { ...exercise, sets: [...exercise.sets, newSet] };
     onChange(updated);
-    if (exercise.sets.length > 0) setTimerSecs(90);
+    if (exercise.sets.length > 0) setTimerSecs(restDuration);
   };
 
   const updateSet = (i: number, s: LoggedSet) => {
@@ -178,14 +178,14 @@ function ExerciseLogger({ exercise, onChange }: { exercise: LoggedExercise; onCh
 }
 
 const exStyles = StyleSheet.create({
-  wrap: { backgroundColor: CARD, borderRadius: 14, padding: 14, marginBottom: 10 },
+  wrap: { backgroundColor: CARD, borderRadius: 14, padding: 14, marginBottom: 10, shadowColor: '#a78bfa', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.12, shadowRadius: 6, elevation: 3 },
   name: { fontSize: 15, fontWeight: '700', color: TEXT },
   ormBadge: { backgroundColor: ACCENT + '22', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4 },
   ormTxt: { color: ACCENT, fontWeight: '700', fontSize: 12 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
   col: { fontSize: 11, color: SUB, fontWeight: '600' },
-  addSetBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4, alignSelf: 'flex-start', paddingVertical: 6, paddingHorizontal: 10, backgroundColor: ACCENT + '18', borderRadius: 8 },
-  addSetTxt: { color: ACCENT, fontWeight: '600', fontSize: 13 },
+  addSetBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4, alignSelf: 'flex-start', paddingVertical: 6, paddingHorizontal: 10, backgroundColor: '#a78bfa15', borderRadius: 8 },
+  addSetTxt: { color: '#a78bfa', fontWeight: '600', fontSize: 13 },
 });
 
 // ── Main Journal Screen ────────────────────────────────────────────
@@ -196,6 +196,7 @@ export default function JournalScreen() {
   const [scheduledPlan, setScheduledPlan] = useState<WorkoutPlan | null>(null);
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
+  const [restDuration, setRestDuration] = useState(90);
 
   const currentDate = getDateStr(dateOffset);
 
@@ -225,6 +226,8 @@ export default function JournalScreen() {
 
     const dayFoods = foodLog[currentDate] || [];
     setCaloriesForDay(dayFoods.reduce((s, f) => s + f.calories, 0));
+    const rd = await getRestTimerDuration();
+    setRestDuration(rd);
   }, [currentDate]);
 
   useEffect(() => { loadData(); }, [loadData]);
@@ -285,7 +288,7 @@ export default function JournalScreen() {
               <Text style={styles.summaryLabel}>kcal eaten</Text>
             </View>
             <View style={styles.summaryChip}>
-              <Text style={[styles.summaryVal, { color: entry.wentToGym ? GREEN : SUB }]}>{totalSets}</Text>
+              <Text style={[styles.summaryVal, { color: entry.wentToGym ? '#a78bfa' : SUB }]}>{totalSets}</Text>
               <Text style={styles.summaryLabel}>sets logged</Text>
             </View>
             {scheduledPlan && (
@@ -305,7 +308,7 @@ export default function JournalScreen() {
                 onPress={() => { if (!entry.wentToGym) toggleWent(); }}
               >
                 <Ionicons name="checkmark-circle" size={18} color={entry.wentToGym ? '#fff' : SUB} />
-                <Text style={[styles.toggleTxt, entry.wentToGym && { color: '#fff' }]}>Yes, I trained</Text>
+                <Text style={[styles.toggleTxt, entry.wentToGym && { color: '#111' }]}>Yes, I trained</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.toggleBtn, !entry.wentToGym && styles.toggleBtnRest]}
@@ -327,7 +330,7 @@ export default function JournalScreen() {
                 </View>
               ) : (
                 entry.exercises.map((ex, i) => (
-                  <ExerciseLogger key={i} exercise={ex} onChange={(updated) => updateExercise(i, updated)} />
+                  <ExerciseLogger key={i} exercise={ex} onChange={(updated) => updateExercise(i, updated)} restDuration={restDuration} />
                 ))
               )}
             </View>
@@ -364,14 +367,14 @@ const styles = StyleSheet.create({
   dateBtn: { padding: 4 },
   dateLabel: { fontSize: 15, color: TEXT, fontWeight: '600', minWidth: 160, textAlign: 'center' },
   summaryRow: { flexDirection: 'row', gap: 10, paddingHorizontal: 16, marginBottom: 20 },
-  summaryChip: { flex: 1, backgroundColor: CARD, borderRadius: 14, padding: 14, alignItems: 'center' },
+  summaryChip: { flex: 1, backgroundColor: CARD, borderRadius: 14, padding: 14, alignItems: 'center', shadowColor: '#a78bfa', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 8, elevation: 4 },
   summaryVal: { fontSize: 20, fontWeight: '800', color: TEXT },
   summaryLabel: { fontSize: 11, color: SUB, marginTop: 3 },
   section: { paddingHorizontal: 16, marginBottom: 22 },
   sectionTitle: { fontSize: 17, fontWeight: '700', color: TEXT, marginBottom: 12 },
   toggleRow: { flexDirection: 'row', gap: 10 },
   toggleBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: CARD, borderRadius: 13, padding: 15 },
-  toggleBtnActive: { backgroundColor: ACCENT },
+  toggleBtnActive: { backgroundColor: '#a78bfa' },
   toggleBtnRest: { backgroundColor: '#2a2a2a' },
   toggleTxt: { color: SUB, fontWeight: '600', fontSize: 14 },
   notesInput: { backgroundColor: CARD, borderRadius: 13, padding: 14, color: TEXT, fontSize: 15, minHeight: 100 },

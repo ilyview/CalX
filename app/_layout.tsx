@@ -5,7 +5,10 @@ export default function RootLayout() {
   return (
     <>
       <StatusBar style="light" />
-      <Stack screenOptions={{ headerShown: false }} />
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="settings" options={{ presentation: 'modal', headerShown: false }} />
+      </Stack>
     </>
   );
 }

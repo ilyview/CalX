@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'expo-router';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   TextInput, Modal, Alert, SafeAreaView, KeyboardAvoidingView,
@@ -13,6 +14,7 @@ import {
 import { FoodEntry, RecentFood, CalorieGoals } from '../../utils/types';
 
 const ACCENT = '#a78bfa';
+const GLOW = { shadowColor: ACCENT, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 10, elevation: 5 };
 const BG = '#0d0d0d';
 const CARD = '#1a1a1a';
 const TEXT = '#f0f0f0';
@@ -42,6 +44,7 @@ function MacroChip({ label, value, color }: { label: string; value: number; colo
 }
 
 export default function NutritionScreen() {
+  const router = useRouter();
   const [dateOffset, setDateOffset] = useState(0);
   const [calorieGoal, setCalorieGoal] = useState(2000);
   const [goals, setGoalsState] = useState<CalorieGoals>({ training: 2500, rest: 2000 });
@@ -129,7 +132,7 @@ export default function NutritionScreen() {
     <SafeAreaView style={styles.safe}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Nutrition</Text>
-        <TouchableOpacity onPress={() => { setNewTrainingGoal(goals.training.toString()); setNewRestGoal(goals.rest.toString()); setGoalModal(true); }} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+        <TouchableOpacity onPress={() => router.push('/settings')} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
           <Ionicons name="settings-outline" size={22} color={SUB} />
         </TouchableOpacity>
       </View>
@@ -167,7 +170,7 @@ export default function NutritionScreen() {
         </View>
 
         {/* Calorie Summary */}
-        <View style={styles.card}>
+        <View style={[styles.card, GLOW]}>
           <View style={styles.calRow}>
             <View>
               <Text style={styles.calMain}>{totalCalories.toLocaleString()}</Text>
@@ -181,7 +184,7 @@ export default function NutritionScreen() {
             </View>
           </View>
           <View style={styles.progressBg}>
-            <View style={[styles.progressFill, { width: `${progress * 100}%`, backgroundColor: progressColor }]} />
+            <View style={[styles.progressFill, { width: `${Math.min(progress,1) * 100}%`, backgroundColor: isOver ? '#f87171' : ACCENT }]} />
           </View>
           {hasMacros && (
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -307,6 +310,12 @@ const styles = StyleSheet.create({
   streakEmoji: { fontSize: 18 },
   streakVal: { fontSize: 20, fontWeight: '800', color: ACCENT },
   streakLabel: { fontSize: 11, color: SUB, flex: 1 },
+  streakChip: { flex: 1, backgroundColor: CARD, borderRadius: 13, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  streakEmoji: { fontSize: 18 },
+  streakVal: { fontSize: 20, fontWeight: '800', color: ACCENT },
+  streakLabel: { fontSize: 11, color: SUB, flex: 1 },
+  progressBg: { height: 7, backgroundColor: '#252525', borderRadius: 4, overflow: 'hidden', marginBottom: 14 },
+  progressFill: { height: '100%', borderRadius: 4 },
   dateNav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12, gap: 16 },
   dateBtn: { padding: 4 },
   dateLabel: { fontSize: 15, color: TEXT, fontWeight: '600', minWidth: 110, textAlign: 'center' },
@@ -321,16 +330,16 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 17, fontWeight: '700', color: TEXT, marginBottom: 12 },
   recentChip: { backgroundColor: CARD, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, alignItems: 'center', minWidth: 90, maxWidth: 130 },
   recentName: { fontSize: 13, color: TEXT, fontWeight: '600', marginBottom: 3 },
-  recentCal: { fontSize: 11, color: ACCENT },
+  recentCal: { fontSize: 11, color: '#a78bfa' },
   emptyBox: { alignItems: 'center', paddingVertical: 40, gap: 6 },
   emptyTxt: { color: '#444', fontSize: 15, fontWeight: '600' },
   emptySub: { color: '#333', fontSize: 13 },
-  entryRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: CARD, borderRadius: 13, padding: 14, marginBottom: 8 },
+  entryRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: CARD, borderRadius: 13, padding: 14, marginBottom: 8, shadowColor: ACCENT, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 6, elevation: 2 },
   entryName: { fontSize: 15, color: TEXT, fontWeight: '500' },
   entryMacros: { fontSize: 12, color: SUB, marginTop: 3 },
-  entryCal: { fontSize: 17, fontWeight: '700', color: ACCENT },
+  entryCal: { fontSize: 17, fontWeight: '700', color: '#a78bfa' },
   entryCalUnit: { fontSize: 11, color: SUB, marginRight: 4 },
-  fab: { position: 'absolute', bottom: 26, right: 22, backgroundColor: ACCENT, width: 58, height: 58, borderRadius: 29, alignItems: 'center', justifyContent: 'center', shadowColor: ACCENT, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.45, shadowRadius: 10, elevation: 10 },
+  fab: { position: 'absolute', bottom: 27, right: 22, backgroundColor: ACCENT, width: 58, height: 58, borderRadius: 29, alignItems: 'center', justifyContent: 'center', shadowColor: ACCENT, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.4, shadowRadius: 15, elevation: 12 },
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'flex-end' },
   modalCard: { backgroundColor: '#181818', borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 24, paddingBottom: 44 },
   modalTitle: { fontSize: 20, fontWeight: '700', color: TEXT, marginBottom: 18 },

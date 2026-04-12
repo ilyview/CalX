@@ -9,6 +9,7 @@ import { getWorkoutPlans, saveWorkoutPlans, getSchedule, saveSchedule } from '..
 import { WorkoutPlan, Exercise, DaySchedule } from '../../utils/types';
 
 const ACCENT = '#a78bfa';
+const GLOW = { shadowColor: ACCENT, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 10, elevation: 5 };
 const BG = '#0d0d0d';
 const CARD = '#1a1a1a';
 const TEXT = '#f0f0f0';
@@ -237,13 +238,13 @@ export default function TrainingScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Today · {DAYS[todayIdx]}</Text>
           {todayPlan ? (
-            <TouchableOpacity style={[styles.card, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]} onPress={() => setSelectedPlan(todayPlan)} activeOpacity={0.8}>
+            <TouchableOpacity style={[styles.card, GLOW, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]} onPress={() => setSelectedPlan(todayPlan)} activeOpacity={0.8}>
               <View>
                 <Text style={{ fontSize: 19, fontWeight: '700', color: TEXT }}>{todayPlan.name}</Text>
                 <Text style={{ fontSize: 13, color: SUB, marginTop: 3 }}>{todayPlan.exercises.length} exercises</Text>
               </View>
-              <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: ACCENT + '22', alignItems: 'center', justifyContent: 'center' }}>
-                <Ionicons name="play" size={14} color={ACCENT} />
+              <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#a78bfa22', alignItems: 'center', justifyContent: 'center' }}>
+                <Ionicons name="play" size={14} color="#a78bfa" />
               </View>
             </TouchableOpacity>
           ) : (
@@ -262,7 +263,7 @@ export default function TrainingScreen() {
               const isToday = i === todayIdx;
               return (
                 <TouchableOpacity key={day} style={[styles.dayCell, isToday && styles.todayCell]} onPress={() => { setScheduleDay(day); setScheduleModal(true); }}>
-                  <Text style={[{ fontSize: 11, fontWeight: '700', color: TEXT, marginBottom: 4 }, isToday && { color: ACCENT }]}>{day}</Text>
+                  <Text style={[{ fontSize: 11, fontWeight: '700', color: TEXT, marginBottom: 4 }, isToday && { color: '#a78bfa' }]}>{day}</Text>
                   <Text style={{ fontSize: 9, color: SUB, textAlign: 'center', lineHeight: 13 }} numberOfLines={2}>{plan ? plan.name : '—'}</Text>
                 </TouchableOpacity>
               );
@@ -275,7 +276,7 @@ export default function TrainingScreen() {
             <Text style={styles.sectionTitle}>My Plans</Text>
             <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }} onPress={() => setCreateModal(true)}>
               <Ionicons name="add" size={16} color={ACCENT} />
-              <Text style={{ color: ACCENT, fontWeight: '600', fontSize: 14 }}>New</Text>
+              <Text style={{ color: '#a78bfa', fontWeight: '600', fontSize: 14 }}>New</Text>
             </TouchableOpacity>
           </View>
           {plans.length === 0 ? (
@@ -308,12 +309,12 @@ export default function TrainingScreen() {
                 <Text style={styles.modalTitle}>Assign — {scheduleDay}</Text>
                 <TouchableOpacity style={[styles.pickItem, !schedule[scheduleDay!] && styles.pickSelected]} onPress={() => handleAssignDay(null)}>
                   <Text style={styles.pickTxt}>Rest day</Text>
-                  {!schedule[scheduleDay!] && <Ionicons name="checkmark" size={18} color={ACCENT} />}
+                  {!schedule[scheduleDay!] && <Ionicons name="checkmark" size={18} color="#a78bfa" />}
                 </TouchableOpacity>
                 {plans.map((plan) => (
                   <TouchableOpacity key={plan.id} style={[styles.pickItem, schedule[scheduleDay!] === plan.id && styles.pickSelected]} onPress={() => handleAssignDay(plan.id)}>
                     <Text style={styles.pickTxt}>{plan.name}</Text>
-                    {schedule[scheduleDay!] === plan.id && <Ionicons name="checkmark" size={18} color={ACCENT} />}
+                    {schedule[scheduleDay!] === plan.id && <Ionicons name="checkmark" size={18} color="#a78bfa" />}
                   </TouchableOpacity>
                 ))}
                 <TouchableOpacity style={[styles.cancelBtn, { marginTop: 8 }]} onPress={() => setScheduleModal(false)}>
@@ -354,8 +355,8 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 17, fontWeight: '700', color: TEXT, marginBottom: 10 },
   card: { backgroundColor: CARD, borderRadius: 16, padding: 16 },
   dayCell: { flex: 1, backgroundColor: CARD, borderRadius: 12, padding: 8, alignItems: 'center', minHeight: 64, justifyContent: 'flex-start' },
-  todayCell: { borderWidth: 1.5, borderColor: ACCENT },
-  exCard: { backgroundColor: CARD, borderRadius: 13, padding: 14, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  todayCell: { borderWidth: 1.5, borderColor: '#a78bfa' },
+  exCard: { backgroundColor: CARD, borderRadius: 13, padding: 14, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 12, shadowColor: ACCENT, shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 6, elevation: 3 },
   exBadge: { width: 34, height: 34, borderRadius: 17, backgroundColor: ACCENT + '25', alignItems: 'center', justifyContent: 'center' },
   exBadgeTxt: { color: ACCENT, fontWeight: '700', fontSize: 14 },
   exInfo: { flex: 1 },
@@ -365,7 +366,7 @@ const styles = StyleSheet.create({
   emptyBox: { alignItems: 'center', paddingVertical: 44, gap: 6 },
   emptyTxt: { color: '#444', fontSize: 15, fontWeight: '600' },
   emptySub: { color: '#333', fontSize: 13 },
-  fab: { position: 'absolute', bottom: 26, right: 22, backgroundColor: ACCENT, width: 58, height: 58, borderRadius: 29, alignItems: 'center', justifyContent: 'center', shadowColor: ACCENT, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.45, shadowRadius: 10, elevation: 10 },
+  fab: { position: 'absolute', bottom: 26, right: 22, backgroundColor: ACCENT, width: 58, height: 58, borderRadius: 29, alignItems: 'center', justifyContent: 'center', shadowColor: ACCENT, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.7, shadowRadius: 16, elevation: 12 },
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'flex-end' },
   modalCard: { backgroundColor: '#181818', borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 24, paddingBottom: 44 },
   modalTitle: { fontSize: 20, fontWeight: '700', color: TEXT, marginBottom: 18 },
@@ -376,6 +377,6 @@ const styles = StyleSheet.create({
   confirmBtn: { flex: 1, backgroundColor: ACCENT, borderRadius: 11, padding: 15, alignItems: 'center' },
   confirmTxt: { color: '#fff', fontWeight: '700', fontSize: 15 },
   pickItem: { backgroundColor: '#222', borderRadius: 11, padding: 14, marginBottom: 8, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  pickSelected: { borderWidth: 1.5, borderColor: ACCENT },
+  pickSelected: { borderWidth: 1.5, borderColor: '#a78bfa' },
   pickTxt: { color: TEXT, fontSize: 15 },
 });

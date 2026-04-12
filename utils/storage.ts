@@ -9,6 +9,7 @@ const KEYS = {
   RECENT_FOODS: 'recent_foods',
   JOURNAL: 'journal',
   WEIGHT_LOG: 'weight_log',
+  REST_TIMER: 'rest_timer_duration',
 };
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -152,6 +153,41 @@ export async function getStreaks(): Promise<{ calorie: number; training: number 
   }
 
   return { calorie: calorieStreak, training: trainingStreak };
+}
+
+// ── Rest timer setting ───────────────────────────────────────────
+export async function getRestTimerDuration(): Promise<number> {
+  const val = await AsyncStorage.getItem(KEYS.REST_TIMER);
+  return val ? parseInt(val) : 90;
+}
+export async function setRestTimerDuration(seconds: number): Promise<void> {
+  await AsyncStorage.setItem(KEYS.REST_TIMER, seconds.toString());
+}
+
+// ── Nutrition history ─────────────────────────────────────────────
+export async function getNutritionHistory(days: number): Promise<{
+  date: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+}[]> {
+  const log = await getFoodLog();
+  const results = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const date = d.toISOString().split('T')[0];
+    const entries = log[date] || [];
+    results.push({
+      date,
+      calories: entries.reduce((s, e) => s + e.calories, 0),
+      protein: entries.reduce((s, e) => s + (e.protein || 0), 0),
+      carbs: entries.reduce((s, e) => s + (e.carbs || 0), 0),
+      fat: entries.reduce((s, e) => s + (e.fat || 0), 0),
+    });
+  }
+  return results;
 }
 
 // ── Volume history for an exercise ───────────────────────────────
