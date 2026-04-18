@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity,
+  View, Text, ScrollView, TouchableOpacity,
   TextInput, Modal, Alert, SafeAreaView, KeyboardAvoidingView,
-  TouchableWithoutFeedback, Keyboard, Platform,
+  TouchableWithoutFeedback, Keyboard, Platform, FlatList,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -13,6 +13,8 @@ import {
   getGoalForDate, getStreaks,
 } from '../../utils/storage';
 import { FoodEntry, RecentFood, CalorieGoals } from '../../utils/types';
+
+const foodsData: { n: string; c: number; p: number; cb: number; f: number }[] = require('../../assets/foods_small.json');
 
 function getTodayStr() { return new Date().toISOString().split('T')[0]; }
 function getDateStr(offset: number) {
@@ -28,6 +30,22 @@ function formatDateLabel(dateStr: string) {
   return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
+function searchFoods(query: string) {
+  if (query.length < 2) return [];
+  const q = query.toLowerCase();
+  const exact: typeof foodsData = [];
+  const starts: typeof foodsData = [];
+  const includes: typeof foodsData = [];
+  for (const food of foodsData) {
+    const n = food.n.toLowerCase();
+    if (n === q) exact.push(food);
+    else if (n.startsWith(q)) starts.push(food);
+    else if (n.includes(q)) includes.push(food);
+    if (exact.length + starts.length + includes.length >= 40) break;
+  }
+  return [...exact, ...starts, ...includes].slice(0, 20);
+}
+
 export default function NutritionScreen() {
   const router = useRouter();
   const { theme } = useTheme();
@@ -41,7 +59,15 @@ export default function NutritionScreen() {
   const [streaks, setStreaks] = useState({ calorie: 0, training: 0 });
   const [addModal, setAddModal] = useState(false);
   const [goalModal, setGoalModal] = useState(false);
+  const [modalTab, setModalTab] = useState<'search' | 'manual'>('search');
 
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<typeof foodsData>([]);
+  const [selectedFood, setSelectedFood] = useState<typeof foodsData[0] | null>(null);
+  const [servingSize, setServingSize] = useState('100');
+
+  // Manual entry state
   const [foodName, setFoodName] = useState('');
   const [calories, setCalories] = useState('');
   const [protein, setProtein] = useState('');
@@ -53,19 +79,20 @@ export default function NutritionScreen() {
   const currentDate = getDateStr(dateOffset);
 
   const loadData = useCallback(async () => {
-    const g = await getCalorieGoals();
-    setGoalsState(g);
-    const goal = await getGoalForDate(currentDate);
-    setCalorieGoal(goal);
-    const log = await getFoodLog();
-    setEntries(log[currentDate] || []);
-    const recents = await getRecentFoods();
-    setRecentFoods(recents);
-    const s = await getStreaks();
-    setStreaks(s);
+    const g = await getCalorieGoals(); setGoalsState(g);
+    const goal = await getGoalForDate(currentDate); setCalorieGoal(goal);
+    const log = await getFoodLog(); setEntries(log[currentDate] || []);
+    const recents = await getRecentFoods(); setRecentFoods(recents);
+    const s = await getStreaks(); setStreaks(s);
   }, [currentDate]);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  useEffect(() => {
+    if (searchQuery.length < 2) { setSearchResults([]); return; }
+    const results = searchFoods(searchQuery);
+    setSearchResults(results);
+  }, [searchQuery]);
 
   const totalCalories = entries.reduce((s, e) => s + e.calories, 0);
   const totalProtein = entries.reduce((s, e) => s + (e.protein || 0), 0);
@@ -84,15 +111,57 @@ export default function NutritionScreen() {
 
   const openAddModal = (prefill?: RecentFood) => {
     if (prefill) {
+      setModalTab('manual');
       setFoodName(prefill.name); setCalories(prefill.calories.toString());
       setProtein(prefill.protein?.toString() || ''); setCarbs(prefill.carbs?.toString() || ''); setFat(prefill.fat?.toString() || '');
     } else {
+      setModalTab('search');
+      setSearchQuery(''); setSearchResults([]); setSelectedFood(null); setServingSize('100');
       setFoodName(''); setCalories(''); setProtein(''); setCarbs(''); setFat('');
     }
     setAddModal(true);
   };
 
-  const handleAdd = async () => {
+  const closeAddModal = () => {
+    setAddModal(false);
+    setSearchQuery(''); setSearchResults([]); setSelectedFood(null); setServingSize('100');
+    setFoodName(''); setCalories(''); setProtein(''); setCarbs(''); setFat('');
+  };
+
+  const selectSearchResult = (food: typeof foodsData[0]) => {
+    setSelectedFood(food);
+    setServingSize('100');
+    setSearchResults([]);
+    Keyboard.dismiss();
+  };
+
+  // Computed macros from selected food + serving size
+  const serving = parseFloat(servingSize) || 100;
+  const ratio = serving / 100;
+  const computedCal = selectedFood ? Math.round(selectedFood.c * ratio) : 0;
+  const computedP = selectedFood ? Math.round(selectedFood.p * ratio * 10) / 10 : 0;
+  const computedCb = selectedFood ? Math.round(selectedFood.cb * ratio * 10) / 10 : 0;
+  const computedF = selectedFood ? Math.round(selectedFood.f * ratio * 10) / 10 : 0;
+
+  const handleAddFromSearch = async () => {
+    if (!selectedFood) { Alert.alert('Select a food first'); return; }
+    if (!servingSize || parseFloat(servingSize) <= 0) { Alert.alert('Enter a valid serving size'); return; }
+    const entry: FoodEntry = {
+      id: Date.now().toString(),
+      name: `${selectedFood.n} (${serving}g)`,
+      calories: computedCal,
+      protein: computedP,
+      carbs: computedCb,
+      fat: computedF,
+      timestamp: Date.now(),
+      date: currentDate,
+    };
+    await addFoodEntry(entry);
+    closeAddModal();
+    loadData();
+  };
+
+  const handleAddManual = async () => {
     if (!foodName.trim() || !calories.trim()) { Alert.alert('Missing info', 'Name and calories are required.'); return; }
     const cal = parseInt(calories);
     if (isNaN(cal) || cal < 0) { Alert.alert('Invalid', 'Enter a valid calorie number.'); return; }
@@ -104,31 +173,28 @@ export default function NutritionScreen() {
       timestamp: Date.now(), date: currentDate,
     };
     await addFoodEntry(entry);
-    setAddModal(false);
+    closeAddModal();
     loadData();
   };
 
   const handleDelete = async (id: string) => { await removeFoodEntry(currentDate, id); loadData(); };
 
   const handleSaveGoals = async () => {
-    const t = parseInt(newTrainingGoal);
-    const r = parseInt(newRestGoal);
+    const t = parseInt(newTrainingGoal); const r = parseInt(newRestGoal);
     if (isNaN(t) || t < 100 || isNaN(r) || r < 100) { Alert.alert('Invalid', 'Enter valid goals (min 100 kcal each).'); return; }
     const newGoals = { training: t, rest: r };
-    await setCalorieGoals(newGoals);
-    setGoalsState(newGoals);
-    setGoalModal(false);
-    loadData();
+    await setCalorieGoals(newGoals); setGoalsState(newGoals); setGoalModal(false); loadData();
   };
 
   const inputStyle = { backgroundColor: T.inputBg, borderRadius: T.radius, padding: 14, color: T.text, fontSize: 15, marginBottom: 10, ...(T.cardBorder ? { borderWidth: 1, borderColor: T.cardBorder } : {}) };
   const confirmBtnStyle = { flex: 1, backgroundColor: T.accent, borderRadius: T.radius, padding: 15, alignItems: 'center' as const };
   const cancelBtnStyle = { flex: 1, backgroundColor: T.inputBg, borderRadius: T.radius, padding: 15, alignItems: 'center' as const, ...(T.cardBorder ? { borderWidth: 1, borderColor: T.cardBorder } : {}) };
+  const modalCardStyle = { backgroundColor: T.modalBg, borderTopLeftRadius: T.name === 'minecraft' ? 4 : 26, borderTopRightRadius: T.name === 'minecraft' ? 4 : 26, padding: 24, paddingBottom: 44, ...(T.cardBorder ? { borderTopWidth: 2, borderLeftWidth: 2, borderRightWidth: 2, borderColor: T.cardBorder } : {}) };
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: T.bg }}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 10, paddingBottom: 4 }}>
-        <Text style={{ fontSize: 30, fontWeight: '800', color: T.text, letterSpacing: -0.5, fontFamily: T.name === 'minecraft' ? 'monospace' : undefined }}>
+        <Text style={{ fontSize: 30, fontWeight: '800', color: T.text, letterSpacing: -0.5 }}>
           {T.name === 'minecraft' ? '🌿 Nutrition' : 'Nutrition'}
         </Text>
         <TouchableOpacity onPress={() => router.push('/settings')} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
@@ -250,7 +316,7 @@ export default function NutritionScreen() {
 
       {/* FAB */}
       <TouchableOpacity
-        style={{ position: 'absolute', bottom: 26, right: 22, backgroundColor: T.accent, width: 58, height: 58, borderRadius: T.name === 'minecraft' ? 4 : 29, alignItems: 'center', justifyContent: 'center', shadowColor: T.accent, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.45, shadowRadius: 10, elevation: 10 }}
+        style={{ position: 'absolute', bottom: 26, right: 22, backgroundColor: T.accent, width: 58, height: 58, borderRadius: T.name === 'minecraft' ? 4 : 29, alignItems: 'center', justifyContent: 'center', shadowColor: T.accent, shadowOpacity: 0.35, shadowRadius: 10, elevation: 10 }}
         onPress={() => openAddModal()} activeOpacity={0.85}
       >
         <Ionicons name="add" size={30} color={T.accentText} />
@@ -261,22 +327,137 @@ export default function NutritionScreen() {
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
           <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
             <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'flex-end' }}>
-              <View style={{ backgroundColor: T.modalBg, borderTopLeftRadius: T.name === 'minecraft' ? 4 : 26, borderTopRightRadius: T.name === 'minecraft' ? 4 : 26, padding: 24, paddingBottom: 44, ...(T.cardBorder ? { borderTopWidth: 2, borderLeftWidth: 2, borderRightWidth: 2, borderColor: T.cardBorder } : {}) }}>
-                <Text style={{ fontSize: 20, fontWeight: '700', color: T.text, marginBottom: 18 }}>
+              <View style={[modalCardStyle, { maxHeight: '90%' }]}>
+                {/* Modal header */}
+                <Text style={{ fontSize: 20, fontWeight: '700', color: T.text, marginBottom: 16 }}>
                   {T.name === 'minecraft' ? '🌾 Log Food' : 'Log Food'}
                 </Text>
-                <TextInput style={inputStyle} placeholder="Food name *" placeholderTextColor={T.sub} value={foodName} onChangeText={setFoodName} />
-                <TextInput style={inputStyle} placeholder="Calories (kcal) *" placeholderTextColor={T.sub} value={calories} onChangeText={setCalories} keyboardType="numeric" />
-                <Text style={{ fontSize: 12, color: T.sub, marginBottom: 8, marginTop: -2 }}>Macros (optional)</Text>
-                <View style={{ flexDirection: 'row', gap: 8 }}>
-                  <TextInput style={[inputStyle, { flex: 1 }]} placeholder="Protein g" placeholderTextColor={T.sub} value={protein} onChangeText={setProtein} keyboardType="numeric" />
-                  <TextInput style={[inputStyle, { flex: 1 }]} placeholder="Carbs g" placeholderTextColor={T.sub} value={carbs} onChangeText={setCarbs} keyboardType="numeric" />
-                  <TextInput style={[inputStyle, { flex: 1 }]} placeholder="Fat g" placeholderTextColor={T.sub} value={fat} onChangeText={setFat} keyboardType="numeric" />
+
+                {/* Tab switcher */}
+                <View style={{ flexDirection: 'row', backgroundColor: T.inputBg, borderRadius: T.radius, padding: 3, marginBottom: 16, ...(T.cardBorder ? { borderWidth: 1, borderColor: T.cardBorder } : {}) }}>
+                  {(['search', 'manual'] as const).map((tab) => (
+                    <TouchableOpacity
+                      key={tab}
+                      style={[{ flex: 1, paddingVertical: 9, borderRadius: T.radius - 2, alignItems: 'center' }, modalTab === tab ? { backgroundColor: T.accent } : {}]}
+                      onPress={() => setModalTab(tab)}
+                    >
+                      <Text style={{ fontWeight: '700', fontSize: 13, color: modalTab === tab ? T.accentText : T.sub }}>
+                        {tab === 'search' ? '🔍 Search' : '✏️ Manual'}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
                 </View>
-                <View style={{ flexDirection: 'row', gap: 10, marginTop: 6 }}>
-                  <TouchableOpacity style={cancelBtnStyle} onPress={() => setAddModal(false)}><Text style={{ color: T.sub, fontWeight: '600', fontSize: 15 }}>Cancel</Text></TouchableOpacity>
-                  <TouchableOpacity style={confirmBtnStyle} onPress={handleAdd}><Text style={{ color: T.accentText, fontWeight: '700', fontSize: 15 }}>Add</Text></TouchableOpacity>
-                </View>
+
+                {/* Search tab */}
+                {modalTab === 'search' && (
+                  <View>
+                    <TextInput
+                      style={[inputStyle, { marginBottom: searchResults.length > 0 ? 0 : 10 }]}
+                      placeholder="Search food database…"
+                      placeholderTextColor={T.sub}
+                      value={searchQuery}
+                      onChangeText={setSearchQuery}
+                      autoFocus={modalTab === 'search'}
+                    />
+
+                    {/* Search results */}
+                    {searchResults.length > 0 && !selectedFood && (
+                      <View style={{ maxHeight: 200, marginBottom: 10 }}>
+                        <ScrollView keyboardShouldPersistTaps="handled" nestedScrollEnabled>
+                          {searchResults.map((food, i) => (
+                            <TouchableOpacity
+                              key={i}
+                              style={[{ padding: 12, borderBottomWidth: 1, borderBottomColor: T.progressBg }, i === 0 ? { borderTopWidth: 1, borderTopColor: T.progressBg } : {}]}
+                              onPress={() => selectSearchResult(food)}
+                            >
+                              <Text style={{ color: T.text, fontSize: 14, fontWeight: '500' }} numberOfLines={1}>{food.n}</Text>
+                              <Text style={{ color: T.sub, fontSize: 11, marginTop: 2 }}>
+                                {food.c} kcal · P {food.p}g · C {food.cb}g · F {food.f}g per 100g
+                              </Text>
+                            </TouchableOpacity>
+                          ))}
+                        </ScrollView>
+                      </View>
+                    )}
+
+                    {/* Selected food + serving size */}
+                    {selectedFood && (
+                      <View>
+                        <View style={[{ backgroundColor: T.accent + '18', borderRadius: T.radius, padding: 12, marginBottom: 12 }, T.cardBorder ? { borderWidth: 1, borderColor: T.accent } : {}]}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <Text style={{ color: T.text, fontSize: 14, fontWeight: '700', flex: 1 }} numberOfLines={1}>{selectedFood.n}</Text>
+                            <TouchableOpacity onPress={() => { setSelectedFood(null); setSearchQuery(''); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                              <Ionicons name="close-circle" size={18} color={T.sub} />
+                            </TouchableOpacity>
+                          </View>
+                          <Text style={{ color: T.sub, fontSize: 12, marginTop: 4 }}>per 100g: {selectedFood.c} kcal · P {selectedFood.p}g · C {selectedFood.cb}g · F {selectedFood.f}g</Text>
+                        </View>
+
+                        <Text style={{ color: T.text, fontSize: 14, fontWeight: '600', marginBottom: 8 }}>Serving size (g)</Text>
+                        <TextInput
+                          style={inputStyle}
+                          placeholder="100"
+                          placeholderTextColor={T.sub}
+                          value={servingSize}
+                          onChangeText={setServingSize}
+                          keyboardType="numeric"
+                        />
+
+                        {/* Computed macros preview */}
+                        <View style={[{ backgroundColor: T.inputBg, borderRadius: T.radius, padding: 12, marginBottom: 12, flexDirection: 'row', justifyContent: 'space-around' }, T.cardBorder ? { borderWidth: 1, borderColor: T.cardBorder } : {}]}>
+                          {[['Kcal', computedCal, T.accent], ['Protein', computedP + 'g', T.protein], ['Carbs', computedCb + 'g', T.carbs], ['Fat', computedF + 'g', T.fat]].map(([label, val, color]) => (
+                            <View key={label as string} style={{ alignItems: 'center' }}>
+                              <Text style={{ fontSize: 16, fontWeight: '800', color: color as string }}>{val}</Text>
+                              <Text style={{ fontSize: 10, color: T.sub, marginTop: 2 }}>{label}</Text>
+                            </View>
+                          ))}
+                        </View>
+
+                        <View style={{ flexDirection: 'row', gap: 10 }}>
+                          <TouchableOpacity style={cancelBtnStyle} onPress={closeAddModal}><Text style={{ color: T.sub, fontWeight: '600', fontSize: 15 }}>Cancel</Text></TouchableOpacity>
+                          <TouchableOpacity style={confirmBtnStyle} onPress={handleAddFromSearch}><Text style={{ color: T.accentText, fontWeight: '700', fontSize: 15 }}>Add</Text></TouchableOpacity>
+                        </View>
+                      </View>
+                    )}
+
+                    {!selectedFood && searchQuery.length < 2 && (
+                      <View style={{ alignItems: 'center', paddingVertical: 24, gap: 6 }}>
+                        <Ionicons name="search" size={32} color={T.sub} />
+                        <Text style={{ color: T.sub, fontSize: 13 }}>Type to search {foodsData.length.toLocaleString()} foods</Text>
+                      </View>
+                    )}
+
+                    {!selectedFood && searchQuery.length >= 2 && searchResults.length === 0 && (
+                      <View style={{ alignItems: 'center', paddingVertical: 24, gap: 6 }}>
+                        <Text style={{ color: T.sub, fontSize: 13 }}>No results — try Manual entry</Text>
+                      </View>
+                    )}
+
+                    {!selectedFood && (
+                      <View style={{ flexDirection: 'row', gap: 10, marginTop: 8 }}>
+                        <TouchableOpacity style={cancelBtnStyle} onPress={closeAddModal}><Text style={{ color: T.sub, fontWeight: '600', fontSize: 15 }}>Cancel</Text></TouchableOpacity>
+                      </View>
+                    )}
+                  </View>
+                )}
+
+                {/* Manual tab */}
+                {modalTab === 'manual' && (
+                  <View>
+                    <TextInput style={inputStyle} placeholder="Food name *" placeholderTextColor={T.sub} value={foodName} onChangeText={setFoodName} />
+                    <TextInput style={inputStyle} placeholder="Calories (kcal) *" placeholderTextColor={T.sub} value={calories} onChangeText={setCalories} keyboardType="numeric" />
+                    <Text style={{ fontSize: 12, color: T.sub, marginBottom: 8, marginTop: -2 }}>Macros (optional)</Text>
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      <TextInput style={[inputStyle, { flex: 1 }]} placeholder="Protein g" placeholderTextColor={T.sub} value={protein} onChangeText={setProtein} keyboardType="numeric" />
+                      <TextInput style={[inputStyle, { flex: 1 }]} placeholder="Carbs g" placeholderTextColor={T.sub} value={carbs} onChangeText={setCarbs} keyboardType="numeric" />
+                      <TextInput style={[inputStyle, { flex: 1 }]} placeholder="Fat g" placeholderTextColor={T.sub} value={fat} onChangeText={setFat} keyboardType="numeric" />
+                    </View>
+                    <View style={{ flexDirection: 'row', gap: 10, marginTop: 6 }}>
+                      <TouchableOpacity style={cancelBtnStyle} onPress={closeAddModal}><Text style={{ color: T.sub, fontWeight: '600', fontSize: 15 }}>Cancel</Text></TouchableOpacity>
+                      <TouchableOpacity style={confirmBtnStyle} onPress={handleAddManual}><Text style={{ color: T.accentText, fontWeight: '700', fontSize: 15 }}>Add</Text></TouchableOpacity>
+                    </View>
+                  </View>
+                )}
               </View>
             </View>
           </TouchableWithoutFeedback>
@@ -288,7 +469,7 @@ export default function NutritionScreen() {
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
           <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
             <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.65)', justifyContent: 'flex-end' }}>
-              <View style={{ backgroundColor: T.modalBg, borderTopLeftRadius: T.name === 'minecraft' ? 4 : 26, borderTopRightRadius: T.name === 'minecraft' ? 4 : 26, padding: 24, paddingBottom: 44 }}>
+              <View style={modalCardStyle}>
                 <Text style={{ fontSize: 20, fontWeight: '700', color: T.text, marginBottom: 18 }}>Calorie Goals</Text>
                 <Text style={{ fontSize: 14, color: T.text, fontWeight: '600', marginBottom: 8 }}>🏋️ Training day</Text>
                 <TextInput style={inputStyle} placeholder="e.g. 2500" placeholderTextColor={T.sub} value={newTrainingGoal} onChangeText={setNewTrainingGoal} keyboardType="numeric" />
